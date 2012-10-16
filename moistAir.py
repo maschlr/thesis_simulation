@@ -120,7 +120,6 @@ class AirMix(object):
     def getAlpha(self, T, xVapor, velocity, diameter, pressure=self.pressure):
         Nusselt = self.getReynolds(T, xVapor, velocity, diameter, pressure=self.pressure)**.5\
                 * self.getPrandtl(T, xVapor)**(1./3.) * 0.331
-
         return Nusselt*self.getMixPropertyByMol(T, xVapor,'lambda')/diameter
 
 

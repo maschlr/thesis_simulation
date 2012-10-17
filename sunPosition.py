@@ -1,5 +1,5 @@
 # Class to calculate sun position
-from numpy import pi, sin, cos, tan, array, dot, vdot, sqrt, arccos, degrees
+from numpy import pi, sin, cos, tan, array, dot, vdot, sqrt, arccos, degrees, sum
 
 class sunPos(object):
     def __init__(self, latitude, longitude, month, startDay, startTime, surfaceSlope=0, year=2012):
@@ -22,14 +22,15 @@ class sunPos(object):
         self.cSin = sin(23.45*pi/180)
         self.cCos = cos(23.45*pi/180)
         #Initialize the vectors for t0
-        self.nHorizontal = array([1, 0, tan(latitude*pi/180)])
+        self.nHorizontal = array([cos(latitude*pi/180), 0, sin(latitude*pi/180)])
         if latitude < 0:
-            self.nSloped = array([1, 0, tan((latitude+surfaceSlope)*pi/180)])
+            self.nSloped = array([cos((latitude+surfaceSlope)*pi/180), 0, sin((latitude+surfaceSlope)*pi/180)])
+            self.vecNorth = array([-sin(latitude*pi/180), 0, -cos(latitude*pi/180)])
         else:
-            self.nSloped = array([1, 0, tan((latitude-surfaceSlope)*pi/180)])
-        self.vecSun = array([1, 0 , tan(-23.45*pi/180)])
+            self.nSloped = array([cos((latitude+surfaceSlope)*pi/180), 0, sin((latitude-surfaceSlope)*pi/180)])
+            self.vecNorth = array([-sin(latitude*pi/180), 0, cos(latitude*pi/180)])
+        self.vecSun = array([cos(23.45*pi/180), 0 , -sin(23.45*pi/180)])
         #Vectors for exact sun position, not only angle of inclination
-        self.vecNorth = array([-tan(latitude*pi/180), 0, 1])
         self.vecEast = array([0,1,0])
     
     def getJulianDay(self, timePassed):
@@ -47,9 +48,11 @@ class sunPos(object):
         self.julianStartDay += self.startDay
 
     def findInList(self, item, itemList):
-        for lItem in itemList:
-            if item>=lItem:
-                return item
+        for i in range(len(itemList)):
+            if item==itemList[i]:
+                return itemList[i]
+            elif item < itemList[i]:
+                return itemList[i-1]
         return False
 
     def rotMatEarth(self, time):
@@ -74,12 +77,12 @@ class sunPos(object):
         B = (self.getJulianDay(timePassed)-1)*360/365
         E = 229.2*(7.5e-5 + 1.868e-3*cos(B) - 3.2077e-2*sin(B) \
                 - 1.4615e-2*cos(2*B)-4.089e-2*sin(2*B))
-        return self.hoursToDecLastLeapyear + (self.julianStartDay-1)*24 \
-                + self.startTime + timePassed + 4*(self.lontitudeTimezone-self.longitude)+E
+        return self.hoursToDecLastLeapyear + (self.julianStartDay-1)*24 + self.startTime \
+                + timePassed + (4*(self.lontitudeTimezone-self.longitude)+E)/60
 
     def getCos(self, vector1, vector2):
         #Computes the Cosinus of the angle beween to vectors
-        return abs(vdot(vector1, vector2))/sqrt(vdot(vector2,vector2))/sqrt(vdot(vector1, vector1))
+        return vdot(vector1,vector2)/sqrt(sum(vector1**2))/sqrt(sum(vector2**2))
 
     def getSlopeFactor(self, timePassed):
         time = self.getRealTime(timePassed)
@@ -98,8 +101,6 @@ class sunPos(object):
         projection = vecST - vdot(vecST,nHT)/vdot(nHT, nHT) * nHT
         cosNorth = self.getCos(projection, vecNT)
         cosEast = self.getCos(projection, vecET)
-
-        print incl, cosNorth, cosEast
 
         if cosEast>0: zeta = degrees(arccos(cosNorth))
         else: zeta = 360-degrees(arccos(cosNorth))

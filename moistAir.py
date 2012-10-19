@@ -5,12 +5,12 @@ class AirMix():
     def __init__(self, pressure=1.01325e5):
         #These parameters are valid around atmospheric pressure
         self.para = {}
-        self.para[('air','cp')] = array([1034.09, 2.84887e-1, 4.97078e-7, 1.07702e-10])
-        self.para[('air','mu')] = array([1.43387e-6, 6.56244e-8, 2.9905e-11])
-        self.para[('air','lambda')] = array([6.69881e-4, 9.42482e-5, 3.2745e-8])
-        self.para[('vapor','cp')] = array([3387.781, -5.55984, 1.94105e-2])
-        self.para[('vapor','mu')] = array([9.7494e-7, 3.59061e-8, 2.41612e-13])
-        self.para[('vapor','lambda')] = array([-3.5376e-3, 6.54755e-5, 1.74460e-8])
+        self.para[('air','cp')] = array([1034.09, -2.84887e-1, 7.816818e-4, -4.970786e-7, 1.07702e-10])
+        self.para[('air','mu')] = array([1.43387e-6, 6.56244e-8, -2.9905e-11])
+        self.para[('air','lambda')] = array([.6698881e-3, .942482e-4, -.32745e-7])
+        self.para[('vapor','cp')] = array([3387.781, -.29666333, 1.94106e-2])
+        self.para[('vapor','mu')] = array([-9.7494e-7, 3.59061e-8, 2.41612e-13])
+        self.para[('vapor','lambda')] = array([-.35376e-2, .654755e-4, .17446e-7])
         self.molMassWater = 18.01525
         self.molMassAir = 28.949
         #Gas constant in J/(K*kmol)
@@ -42,13 +42,11 @@ class AirMix():
         if pressure is None:
             pressure=self.pressure
         if phi > 1: phi/=100
-        if phi > 1: phi/=100
         massPerTotalMass = phi*self.getSatPressure(T)/pressure*self.molMassWater/self.molMassAir
         return  massPerTotalMass/(1-massPerTotalMass)
 
     def getPureProperty(self, T, substance, prop):
         #T in K
-        T = T-273.15
         poly = 0
         n = 0
         parameters = self.para[(substance, prop)]
@@ -70,7 +68,7 @@ class AirMix():
         propVapor = self.getPureProperty(T, 'vapor', prop)
         propAirDry = self.getPureProperty(T, 'air', prop)
         muVapor = self.getPureProperty(T, 'vapor', 'mu')
-        muAir = self.getPureProperty(T, 'vapor', 'mu')
+        muAir = self.getPureProperty(T, 'air', 'mu')
         theta = {}
         theta['air'] = 2**(.5)/4*(mWater/(mWater+mAirDry))**(.5) \
                 *(1+(muAir/muVapor)**(.5)*(mWater/mWater)**(.25))**2
@@ -90,12 +88,12 @@ class AirMix():
         propVapor = self.getPureProperty(T, 'vapor', prop)
         propAirDry = self.getPureProperty(T, 'air', prop)
         muVapor = self.getPureProperty(T, 'vapor', 'mu')
-        muAir = self.getPureProperty(T, 'vapor', 'mu')
+        muAir = self.getPureProperty(T, 'air', 'mu')
         theta = {}
         theta['air'] = 2**(.5)/4*(mWater/(mWater+mAirDry))**(.5) \
-                *(1+(muAir/muVapor)**(.5)*(mWater/mWater)**(.25))**2
+                *(1+(muAir/muVapor)**(.5)*(mWater/mAirDry)**(.25))**2
         theta['vapor'] = 2**(.5)/4*(mAirDry/(mWater+mAirDry))**(.5) \
-                *(1+(muVapor/muAir)**(.5)*(mWater/mAirDry)**(.25))**2
+                *(1+(muVapor/muAir)**(.5)*(mAirDry/mWater)**(.25))**2
         
         return propAirDry/(1+theta['air']*xVapor/xAirDry) \
                 + propVapor/(1+theta['vapor']*xAirDry/xVapor)
@@ -116,7 +114,6 @@ class AirMix():
         #Density in kg/m^3
         if pressure is None:
             pressure=self.pressure
-        if phi > 1: phi/=100
         xAirDry = 1-xVapor
         molMassMix = xVapor*self.molMassWater + xAirDry*self.molMassAir
         return pressure*molMassMix/self.R/T
@@ -130,7 +127,6 @@ class AirMix():
         #Computes Reynolds number based on temperatur, mol amount, velocity and diameter
         if pressure is None:
             pressure=self.pressure
-        if phi > 1: phi/=100
         return self.getDensityByMol(T, xVapor, pressure)*velocity*diameter \
                 / self.getPropertyByMol(T, xVapor, 'mu')
 
@@ -142,9 +138,12 @@ class AirMix():
     def getAlpha(self, T, xVapor, velocity, diameter, pressure=None):
         if pressure is None:
             pressure=self.pressure
-        if phi > 1: phi/=100
-        Nusselt = self.getReynolds(T, xVapor, velocity, diameter, pressure=self.pressure)**.5\
-                * self.getPrandtl(T, xVapor)**(1./3.) * 0.331
+        Reynolds = self.getReynolds(T, xVapor, velocity, diameter, pressure=self.pressure)
+        Prandtl = self.getPrandtl(T, xVapor)
+        if Reynolds<2300:
+            Nusselt = Reynolds**(.5) * Prandtl**(1./3.)*0.332
+        else:
+            Nusselt = 0.0296 * Reynolds**(4./5.)*Prandtl**(1./3.)
         return Nusselt*self.getPropertyByMol(T, xVapor,'lambda')/diameter
 
 

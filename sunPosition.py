@@ -108,8 +108,3 @@ class sunPos(object):
 
         return [declination, zeta]
 
-
-
-
-        
-

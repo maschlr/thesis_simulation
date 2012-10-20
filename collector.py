@@ -17,17 +17,17 @@ JACFAC = 1e-1
 class Collector():
     def __init__(self, month, startDay, startTime, timeSpan, data=None):
         if data is None:
-            self.v_a = .5
+            self.v_a = .5 
             self.L = 4.
             self.b = 1.
-            self.d = 0.05
+            self.d = 0.1
             self.A = self.b*self.L
             self.d_h = 2.*self.b*self.d/(self.b+self.d)
     
             #Thicknesses
             self.l_s = 0.1
-            self.l_i = 0.1
-            self.l_p = 0.007
+            self.l_i = 0.01
+            self.l_p = 0.005
             self.l_g = 0.005	
 
             #Design parameters for the fins
@@ -49,8 +49,8 @@ class Collector():
             self.epsilon_g1 = 0.8
             self.epsilon_g2 = 0.8
             self.epsilon_p = 0.95
-            self.tau_g1 = 0.9
-            self.tau_g2 = 0.8
+            self.tau_g1 = 0.8
+            self.tau_g2 = 0.9
             self.rho_s = 2700.0
             self.c_s = 790.0
             self.c_p = 452.0
@@ -132,6 +132,12 @@ class Collector():
         self.plt_t = ones((len(self.stop_t),6))
         for i in range(6):
             self.plt_t[:,i]*=self.stop_t
+    
+    def showPlot(self):
+        legend = ['$T_{g1}$', '$T_{g2}$', '$T_{ps}$', '$T_{f1}$', '$T_{f2}$', '$T_{f3}$']
+        lineHandles = plt.plot(self.plt_t, self.solution['ida'][:,:6]-273.15)
+        plt.legend(lineHandles, legend)
+        plt.show()
 
 class resindex(ida.IDA_RhsFunction):
     """ Residual function class as needed by the IDA DAE solver """
@@ -144,7 +150,7 @@ class resindex(ida.IDA_RhsFunction):
         cd = self.cd
         ambTemp = ip.splev(t, cd.rTemps)
         h_cw = 2.8+3.*abs(ip.splev(t, cd.rWindspeed))
-        insol = 1.2*ip.splev(t, cd.rInsolation)
+        insol = cd.sp.getSlopeFactor(t/3600)*ip.splev(t, cd.rInsolation)
         u_b = (1./h_cw + cd.l_i/cd.lambda_i + 1./cd.hc[2])**(-1)
 
         res[0] = h_cw*(ambTemp-x[0]) + cd.hc[0]*(x[6]-x[0]) + cd.hr[1]*(x[1]**4-x[0]**4) \
@@ -153,7 +159,7 @@ class resindex(ida.IDA_RhsFunction):
         res[1] = cd.hc[1]*(x[7]-x[1]) + cd.hc[0]*(x[6]-x[1]) + cd.hr[1]*(x[0]**4-x[1]**4) \
                 + cd.hr[2]*(x[2]**4-x[1]**4) + insol*cd.tau_g1*cd.alpha_g2 \
                 - xdot[1]*cd.l_g*cd.rho_g*cd.c_g
-        res[2] = cd.hc[2]*cd.A*(x[8]-x[2]) \
+        res[2] = cd.hc[2]*cd.A*(x[8]-x[2]) + (cd.lambda_i/cd.l_i)*(ambTemp-x[2])*2*cd.A \
                 + cd.hc[1]*(cd.A+cd.eta_f*cd.b_2*cd.d_2*cd.n_f)*(x[7]-x[2]) \
                 + cd.hr[2]*cd.A*(x[1]**4-x[2]**4) + insol*cd.tau_g1*cd.tau_g2*cd.alpha_p*cd.A\
                 - xdot[2]*(cd.A*cd.l_s*cd.rho_s*cd.c_s+(cd.A+cd.n_f*cd.d_2*cd.b_2)*cd.c_p*cd.rho_p)
@@ -187,7 +193,7 @@ class resindex(ida.IDA_RhsFunction):
 
 def calculateSolution():
     jac = None
-    prob = Collector(month=2, startDay=4, startTime=5, timeSpan=24*10)
+    prob = Collector(month=2, startDay=1, startTime=5, timeSpan=24*25)
     res = resindex()
     
     res.set_drysim(prob)

@@ -15,23 +15,24 @@ RTOL = 1e-3
 JACFAC = 1e-1
 
 class Collector():
-    def __init__(self, month, startDay, startTime, timeSpan, data=None):
-        if data is None:
-            self.v_a = .5 
-            self.L = 4.
-            self.b = 1.
-            self.d = 0.1
-            self.A = self.b*self.L
+    def __init__(self, timeData, designData, materialData=None):
+        self.v_a = designData['v_a']
+        self.L = designData['L']
+        self.b = designData['b']
+        self.d = designData['d']
+        self.b_2 = designData['b_2'] 
+        self.l_s = designData['l_s'] 
+        
+        if materialData is None:
             self.d_h = 2.*self.b*self.d/(self.b+self.d)
+            self.A = self.b*self.L
     
             #Thicknesses
-            self.l_s = 0.1
-            self.l_i = 0.01
+            self.l_i = 0.1
             self.l_p = 0.005
             self.l_g = 0.005	
 
             #Design parameters for the fins
-            self.b_2 = 0.75
             self.d_2 = self.d
             self.d_h2 = 2*(self.b-self.b_2)*self.d_2/((self.b-self.b_2)+self.d_2)
             self.n_f = floor(self.L/(self.b-self.b_2)) - 1
@@ -63,23 +64,20 @@ class Collector():
             self.latitude = -5.2
             self.longitude = 80.633333
         
-        self.month = month 
-        self.startDay = startDay
+        self.month = timeData['month'] 
+        self.startDay = timeData['startDay']
         # startTime and timeSpan in hours from 0:00h
-        self.startTime = startTime
-        self.timeSpan = timeSpan
-        if timeSpan>24:
-            self.endDay = self.startDay + floor(timeSpan/24.)
-        else:
-            self.endDay = None
+        self.startTime = timeData['startTime']
+        self.timeSpan = timeData['timeSpan']
+        self.year = (timeData['year'] or 2011)
         #Access to sun position functions
         self.sp=sunPos(self.latitude, self.longitude, self.month, self.startDay, self.startTime, surfaceSlope=self.beta)
 
         #Access to the database with weatherdata
         self.recData = weatherData()
-        self.recData.readDB(self.month, self.startDay, self.startTime, self.timeSpan)
+        self.recData.readDB(self.month, self.startDay, self.startTime, self.timeSpan, self.year)
 
-        #columns: 0:day, 1:month, 2:year, 3:hours, 4:minutes, 5:seconds from beginning of month
+        #columns: 0:day, 1:month, 2:year, 3:hours, 4:minutes, 5:minutesInYear
         # 6:temperature, 7:humidity, 8:windspeed, 9:insolation
         self.relevantData = array(self.recData.relevantData)
         self.timeline = arange(0., len(self.relevantData[:,1])*1800., 1800.)
@@ -117,6 +115,7 @@ class Collector():
         self.yp0 = ones(9)*-1
 
         self.solution = {}
+        self.legend = ['$T_{g1}$', '$T_{g2}$', '$T_{ps}$', '$T_{f1}$', '$T_{f2}$', '$T_{f3}$']
 
     def set_res(self, resfunction):
         """Function to set the residual function as required by IDA
@@ -131,12 +130,11 @@ class Collector():
         self.solution[solver] = y
         self.plt_t = ones((len(self.stop_t),6))
         for i in range(6):
-            self.plt_t[:,i]*=self.stop_t
+            self.plt_t[:,i]*=self.stop_t/3600
     
     def showPlot(self):
-        legend = ['$T_{g1}$', '$T_{g2}$', '$T_{ps}$', '$T_{f1}$', '$T_{f2}$', '$T_{f3}$']
         lineHandles = plt.plot(self.plt_t, self.solution['ida'][:,:6]-273.15)
-        plt.legend(lineHandles, legend)
+        plt.legend(lineHandles, self.legend)
         plt.show()
 
 class resindex(ida.IDA_RhsFunction):
@@ -150,7 +148,7 @@ class resindex(ida.IDA_RhsFunction):
         cd = self.cd
         ambTemp = ip.splev(t, cd.rTemps)
         h_cw = 2.8+3.*abs(ip.splev(t, cd.rWindspeed))
-        insol = cd.sp.getSlopeFactor(t/3600)*ip.splev(t, cd.rInsolation)
+        insol = ip.splev(t, cd.rInsolation)
         u_b = (1./h_cw + cd.l_i/cd.lambda_i + 1./cd.hc[2])**(-1)
 
         res[0] = h_cw*(ambTemp-x[0]) + cd.hc[0]*(x[6]-x[0]) + cd.hr[1]*(x[1]**4-x[0]**4) \
@@ -162,7 +160,7 @@ class resindex(ida.IDA_RhsFunction):
         res[2] = cd.hc[2]*cd.A*(x[8]-x[2]) + (cd.lambda_i/cd.l_i)*(ambTemp-x[2])*2*cd.A \
                 + cd.hc[1]*(cd.A+cd.eta_f*cd.b_2*cd.d_2*cd.n_f)*(x[7]-x[2]) \
                 + cd.hr[2]*cd.A*(x[1]**4-x[2]**4) + insol*cd.tau_g1*cd.tau_g2*cd.alpha_p*cd.A\
-                - xdot[2]*(cd.A*cd.l_s*cd.rho_s*cd.c_s+(cd.A+cd.n_f*cd.d_2*cd.b_2)*cd.c_p*cd.rho_p)
+                - xdot[2]*(cd.A*cd.l_s*cd.rho_s*cd.c_s+(cd.A+cd.n_f*cd.d_2*cd.b_2)*cd.l_p*cd.c_p*cd.rho_p)
         res[3] = (x[0]+x[1])/2. + (ambTemp-(x[0]+x[1])/2.)*exp(-2.*cd.hc[0]*cd.b*cd.L/cd.mcp)\
                 -x[3]
         res[4] = ((cd.b-cd.b_2+cd.eta_f*cd.d_2*2)*x[2] + (cd.b-cd.b_2)*x[1]) \
@@ -191,9 +189,9 @@ class resindex(ida.IDA_RhsFunction):
                 -x[8]
         return 0
 
-def calculateSolution(month, startDay, startTime, timeSpan):
+def calculateSolution(timeData, designData):
     jac = None
-    prob = Collector(month=month, startDay=startDay, startTime=startTime, timeSpan=timeSpan)
+    prob = Collector(timeData, designData)
     res = resindex()
     
     res.set_drysim(prob)

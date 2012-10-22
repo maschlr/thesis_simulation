@@ -89,7 +89,8 @@ class sunPos(object):
         vecST = dot(self.rotMatSun(time), self.vecSun)
         nHT = dot(self.rotMatEarth(time), self.nHorizontal)
         nSlopedT = dot(self.rotMatEarth(time), self.nSloped)
-        return self.getCos(vecST,nSlopedT)/self.getCos(vecST,nHT)
+        #Without boundaries, this will result in high numbers at dusk/dawn
+        return min([2, max([0, self.getCos(vecST,nSlopedT)/self.getCos(vecST,nHT)])])
 
     def getSunPosition(self, timePassed):
         time = self.getRealTime(timePassed)

@@ -6,9 +6,13 @@ import re
 from numpy import array, floor
 
 class weatherData(object):
-    def __init__(self, year):
+    def __init__(self):
         self.data = []
         self.listOfFiles=[]
+        self.year = None
+
+    def setYear(self, year):
+        self.year=year
 
     def getAllWeatherFiles(self,directory=os.path.join(os.getcwd(),'weatherfiles/')):
         dataFiles = os.listdir(directory)
@@ -52,13 +56,15 @@ class weatherData(object):
                 l[1] = l[1].split(':')
                 if i < 2:
                     yearMinutes = self.getYearMinutes([int(b) for b in l[0]])
-                    yearMinutes+=int(l[1][0])*60
+                    yearMinutes += int(l[1][0])*60
+                    self.setYear(int(l[0][2]))
                 # The colums are:(day, month, year, hours, minutes, yearMinutes, temperature, humidity, windspeed, insolation) 
                 self.data.append([int(l[0][0]),int(l[0][1]),int(l[0][2]),int(l[1][0]),int(l[1][1]),yearMinutes+i*30,float(l[2]),float(l[5])/100,float(l[7]),float(l[19])])
                 i+=1
             f.close()
     
     def getYearMinutes(self, dayMonthYear):
+        #Computes the minutes passed since 01.Jan 0:00
         hoursTotal = 0
         leapyears = range(1900,2200,4)
         leapyears.remove(1900)
@@ -80,7 +86,7 @@ class weatherData(object):
             csv_writer.writerow(row)
         f.close()
 
-    def writeDB(self, dbfile='default.db', path='', tableName='weatherData'):
+    def writeDB(self, dbfile='weather.db', path='', tableName='weatherData'):
         conn = sqlite3.connect(os.path.join(path, dbfile))
         db = conn.cursor()
 
@@ -92,8 +98,8 @@ class weatherData(object):
         conn.commit()
         db.close()
 
-    def readDB(self, month, startDay, startTime, timeSpan, dbfile='default.db', path='', tableName='weatherData'):
-        startMinutes=getStartMinutes([startDay, month, self.year])+startTime*60
+    def readDB(self, month, startDay, startTime, timeSpan, year=None, dbfile='weather.db', path='', tableName='weatherData'):
+        startMinutes = self.getYearMinutes([startDay, month, (year or self.year)])+startTime*60
         endMinutes = startMinutes+timeSpan*60
         conn = sqlite3.connect(os.path.join(path,dbfile))
         db = conn.cursor()

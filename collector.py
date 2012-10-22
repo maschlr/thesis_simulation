@@ -191,9 +191,9 @@ class resindex(ida.IDA_RhsFunction):
                 -x[8]
         return 0
 
-def calculateSolution():
+def calculateSolution(month, startDay, startTime, timeSpan):
     jac = None
-    prob = Collector(month=2, startDay=1, startTime=5, timeSpan=24*25)
+    prob = Collector(month=month, startDay=startDay, startTime=startTime, timeSpan=timeSpan)
     res = resindex()
     
     res.set_drysim(prob)
